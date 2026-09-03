@@ -25,7 +25,7 @@
     if(start===0 && end===10 && isQuestionArray(this)){
       const pool=Array.from(this);
       const poolIds=pool.map(qid);
-      const signature=poolIds.slice().sort().join('\n');
+      const signature=nativeSlice.call(poolIds).sort().join('\n');
       const state=readState();
       const old=state[signature] && Array.isArray(state[signature].seen) ? state[signature].seen : [];
       const seen=new Set(old.filter(id=>poolIds.includes(id)));
@@ -33,20 +33,21 @@
       let selected=[];
 
       if(unseen.length>=10){
-        selected=unseen.slice(0,10);
+        selected=nativeSlice.call(unseen,0,10);
         selected.forEach(x=>seen.add(qid(x)));
         state[signature]={seen:Array.from(seen),updated:new Date().toISOString()};
       }else{
-        selected=unseen.slice();
+        selected=nativeSlice.call(unseen);
         const selectedIds=new Set(selected.map(qid));
         const need=10-selected.length;
-        const newCycle=pool.filter(x=>!selectedIds.has(qid(x))).slice(0,need);
+        const candidates=pool.filter(x=>!selectedIds.has(qid(x)));
+        const newCycle=nativeSlice.call(candidates,0,need);
         selected.push(...newCycle);
         state[signature]={seen:newCycle.map(qid),updated:new Date().toISOString()};
       }
 
       const keys=Object.keys(state).sort((a,b)=>String(state[b]?.updated||'').localeCompare(String(state[a]?.updated||'')));
-      keys.slice(12).forEach(k=>delete state[k]);
+      nativeSlice.call(keys,12).forEach(k=>delete state[k]);
       saveState(state);
       return selected;
     }

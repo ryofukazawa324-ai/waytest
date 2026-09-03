@@ -1,56 +1,49 @@
 (()=>{
-  const nativeSlice=Array.prototype.slice;
-  const STORAGE_KEY='waytest-question-cycle-v1';
+  const nativeSort=Array.prototype.sort;
+  const nativeSetItem=Storage.prototype.setItem;
+  const STORAGE_KEY='waytest-question-seen-v2';
 
   function isQuestionArray(a){
-    return Array.isArray(a) && a.length>=10 && a.every(x=>Array.isArray(x) && x.length>=5 && [1,2,6].includes(Number(x[0])));
+    return Array.isArray(a)&&a.length>0&&a.every(x=>Array.isArray(x)&&x.length>=5&&[1,2,6].includes(Number(x[0])));
   }
-
-  function qid(x){
-    return [x[0],String(x[2]||''),String(x[3]||'')].join('｜');
-  }
-
-  function readState(){
+  function qid(x){return [x[0],String(x[2]||''),String(x[3]||'')].join('｜')}
+  function loadSeen(){try{const a=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');return new Set(Array.isArray(a)?a:[])}catch{return new Set()}}
+  function saveSeen(set){try{nativeSetItem.call(localStorage,STORAGE_KEY,JSON.stringify(Array.from(set)))}catch{}}
+  function questionFromStatKey(k){
     try{
-      const v=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      return v && typeof v==='object' ? v : {};
-    }catch{return {}}
+      const m=String(k).match(/^(\d+)-(\d+)$/);if(!m||!Array.isArray(window.Q))return null;
+      const x=window.Q[Number(m[2])];
+      return x&&Number(x[0])===Number(m[1])?x:null;
+    }catch{return null}
   }
 
-  function saveState(v){
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(v))}catch{}
-  }
-
-  Array.prototype.slice=function(start,end){
-    if(start===0 && end===10 && isQuestionArray(this)){
-      const pool=Array.from(this);
-      const poolIds=pool.map(qid);
-      const signature=nativeSlice.call(poolIds).sort().join('\n');
-      const state=readState();
-      const old=state[signature] && Array.isArray(state[signature].seen) ? state[signature].seen : [];
-      const seen=new Set(old.filter(id=>poolIds.includes(id)));
-      const unseen=pool.filter(x=>!seen.has(qid(x)));
-      let selected=[];
-
-      if(unseen.length>=10){
-        selected=nativeSlice.call(unseen,0,10);
-        selected.forEach(x=>seen.add(qid(x)));
-        state[signature]={seen:Array.from(seen),updated:new Date().toISOString()};
-      }else{
-        selected=nativeSlice.call(unseen);
-        const selectedIds=new Set(selected.map(qid));
-        const need=10-selected.length;
-        const candidates=pool.filter(x=>!selectedIds.has(qid(x)));
-        const newCycle=nativeSlice.call(candidates,0,need);
-        selected.push(...newCycle);
-        state[signature]={seen:newCycle.map(qid),updated:new Date().toISOString()};
-      }
-
-      const keys=Object.keys(state).sort((a,b)=>String(state[b]?.updated||'').localeCompare(String(state[a]?.updated||'')));
-      nativeSlice.call(keys,12).forEach(k=>delete state[k]);
-      saveState(state);
-      return selected;
+  Storage.prototype.setItem=function(k,v){
+    if(this===localStorage&&k==='waytest-v1'){
+      try{
+        const before=JSON.parse(localStorage.getItem(k)||'{}');
+        const after=JSON.parse(String(v)||'{}');
+        const seen=loadSeen();
+        Object.keys(after).forEach(statKey=>{
+          const b=before[statKey]||{},a=after[statKey]||{};
+          if((a.ok||0)>(b.ok||0)){
+            const x=questionFromStatKey(statKey);if(x)seen.add(qid(x));
+          }
+        });
+        saveSeen(seen);
+      }catch{}
     }
-    return nativeSlice.call(this,start,end);
+    return nativeSetItem.call(this,k,v);
+  };
+
+  Array.prototype.sort=function(compareFn){
+    if(!isQuestionArray(this))return nativeSort.call(this,compareFn);
+    nativeSort.call(this,compareFn);
+    const pool=Array.from(this),seen=loadSeen(),ids=pool.map(qid);
+    if(ids.length&&ids.every(id=>seen.has(id))){ids.forEach(id=>seen.delete(id));saveSeen(seen)}
+    const unseen=[],done=[];
+    pool.forEach(x=>(seen.has(qid(x))?done:unseen).push(x));
+    const ordered=unseen.concat(done);
+    ordered.forEach((x,i)=>{this[i]=x});
+    return this;
   };
 })();

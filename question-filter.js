@@ -9,6 +9,10 @@
     if(!m) return new Response(text,{status:res.status,statusText:res.statusText,headers:res.headers});
     let q=JSON.parse(m[1]);
     q=q.filter(x=>!(x[0]===1 && x[2]==='ユニーク・クオリティ・スピード・コストの中で、最も優先順位が高いのは＿＿＿＿。'));
+
+    // 5Sは穴埋めではなく、5項目まとめて答える概要問題として扱う。
+    q=q.map(x=>x[0]===1&&x[2]==='5Sの「整理」とは？'?[x[0],'教訓',x[2],x[3],x[4]]:x);
+
     const oldPrompt='第6巻の重要な4項目を、優先する順番で答える。';
     const newPrompt='事業を達成させるのに大事な4つの項目を、順番に答えてください。';
     q=q.filter(x=>!(x[0]===6 && x[2]===oldPrompt));

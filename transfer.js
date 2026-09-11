@@ -4,7 +4,8 @@
     'waytest-history-v1',
     'waytest-volumes-v1',
     'waytest-question-seen-v3',
-    'waytest-question-seen-v2'
+    'waytest-question-seen-v2',
+    'waytest-memorandum-v1'
   ];
   const BACKUP_KEY='waytest-data-backups-v1';
   const PREFIX='NWAY1-';
@@ -81,7 +82,7 @@
     box.id='transferBox';
     box.innerHTML=`
       <div class="ttl">記録の引き継ぎ</div>
-      <div class="sub">機種変更・別ブラウザへ、点数・回答履歴・苦手データなどをまとめて移せます。ログイン情報は含みません。</div>
+      <div class="sub">機種変更・別ブラウザへ、点数・回答履歴・苦手データ・覚書の習得記録などをまとめて移せます。ログイン情報は含みません。</div>
       <div class="acts">
         <button class="pri" id="makeTransfer">引き継ぎコードを作る</button>
         <button class="b" id="openImport">コードから復元</button>

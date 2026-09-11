@@ -1,5 +1,5 @@
 (()=>{
-  const DATA_KEYS=['waytest-v1','waytest-history-v1','waytest-volumes-v1'];
+  const DATA_KEYS=['waytest-v1','waytest-history-v1','waytest-volumes-v1','waytest-memorandum-v1'];
   const BACKUP_KEY='waytest-data-backups-v1';
   try{
     const current={};

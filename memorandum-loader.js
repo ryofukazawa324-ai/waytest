@@ -8,48 +8,55 @@
   const ACTIVE_MARKER="  let active=false,track='business',level='choice',idx=0,selected=[];";
   const FINISH_MARKER="  function renderFinish(){state.sessionStarted=false;save();";
   const RENDER_OLD="  function renderQuestion(){const main=app(),set=TRACKS[track],item=set.items[idx],st=getStat(track,idx,level),n=set.items.length;selected=[];if(!item)return renderFinish();";
-  const RENDER_NEW="  function renderQuestion(){const main=app(),set=TRACKS[track],item=set.items[idx];if(item&&track==='manager'&&(level==='choice'||level==='input'))randomizeManagerBlanks(item);const st=getStat(track,idx,level),n=set.items.length;selected=[];if(!item)return renderFinish();";
+  const RENDER_NEW="  function renderQuestion(){const main=app(),set=TRACKS[track],item=set.items[idx];if(item&&(level==='choice'||level==='input'))prepareDenseBlanks(item);const st=getStat(track,idx,level),n=set.items.length;selected=[];if(!item)return renderFinish();";
   const TOKEN_OLD="return esc(text).replace(/@@(\\d+)@@/g";
   const TOKEN_NEW="return esc(`${idx+1}. ${text}`).replace(/@@(\\d+)@@/g";
-  const PARTICLE_PATCH=`  const particleAdds={
-    business:{0:['と'],1:['と'],3:['は'],6:['と'],8:['で']},
-    manager:{0:['で'],1:['と'],4:['で'],6:['と'],7:['に'],9:['と']},
-    actions:{1:['を'],3:['で'],4:['を']}
+  const DENSE_PATCH=`  const denseBlankMap={
+    business:[
+      {required:['目標と','熱意をもって','人生','時間は','平等','結果は','公正']},
+      {required:['準備して','時間と','期限を守れ','己に勝って','信用増大']},
+      {required:['優先順位をつけ','実行','一分の速さは','力なり']},
+      {required:['整理','整頓','清掃','清潔','躾','習慣は','人格を作る']},
+      {required:['相談','連絡','報告を','多く行え','自分の成長の','糧']},
+      {required:['考え方は','幹から','先に','森の成果を','目指せ']},
+      {required:['反復','改善しろ','時間の短縮と','結果の向上を'],optional:['ではなく']},
+      {required:['良い事は','まねて','上まわれ','新しい','企画創造'],optional:['次は']},
+      {required:['無理に','挑戦','知恵','心','勇気で','全力行動']},
+      {required:['競争無くして','成長なし','ゲーム感覚で','自らの幸せを']}
+    ],
+    manager:[
+      {required:['自己マネジメントしろ','世間の目は','厳しい','仕事で','みんなの手本に','なれ'],optional:['まず']},
+      {required:['エバンジェリストたれ','勇気をもっての','伝導と','許しは','部下と','自分を磨く']},
+      {required:['大きな夢を持て','目標と','時と','施策と','役割優先を','記せ','計画となる','必ず達成すると','人に誓え'],optional:['それが']},
+      {required:['人の目利きをせよ','指導は','視ること','聞くことから','質問へ','企画','参画(2.56)で','決定へ','議して','決して','書して','納得して','必ず実行を'],optional:['会議では']},
+      {required:['相談されたら','即決断','できない時は','期日指定で','回答を','信頼を作る'],optional:['それが']},
+      {required:['提案は','すべて許可','前提','現状','マイナス','原因','どうすれば','どうなる','をチェックし','コミットを','忘れるな']},
+      {required:['数字だけを','見るな','プロセスを','注視せよ','個人別中間チェックによる','問題発見と','治療が','部下の成長と','部門の業績向上に','繋がる']},
+      {required:['困難でも','あきらめるな','継続して','目標に近づく','努力をしろ']},
+      {required:['成果と','プロセスに対して','オープンな','信賞必罰を','厳しく','暖かく','行動で','示そう']},
+      {required:['先を視て','OODAの実践と','部下の育成が','マネジャーの貢献を','拡大し','自己の成長を','促す']}
+    ],
+    actions:[
+      {required:['自ら学び','自ら販買する']},
+      {required:['自ら5Sし','自ら買い場を','作る']},
+      {required:['従業員を','観察から','質問し','育成を','行う']},
+      {required:['個人名で','気配りと','信賞必罰を','行う']},
+      {required:['自らアイデアを','出し','自ら他部門に','応援する']}
+    ]
   };
-  Object.entries(particleAdds).forEach(([trackName,rows])=>{
-    Object.entries(rows).forEach(([i,parts])=>{
-      const item=TRACKS[trackName].items[Number(i)];
-      parts.forEach(p=>{if(item.text.includes(p)&&!item.words.includes(p))item.words.push(p)});
-      item.words.sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
+  Object.entries(denseBlankMap).forEach(([trackName,rows])=>{
+    rows.forEach((cfg,i)=>{
+      const item=TRACKS[trackName].items[i];
+      if(!item)return;
+      item._denseRequired=(cfg.required||[]).filter(w=>item.text.includes(w));
+      item._denseOptional=(cfg.optional||[]).filter(w=>item.text.includes(w));
     });
   });
-  const managerPriority={
-    0:['まず'],
-    1:['勇気を'],
-    2:['記せ','必ず達成'],
-    3:['指導は','企画','実行'],
-    5:['提案','忘れるな'],
-    6:['数字だけ','プロセスを','部下の成長','部門の業績向上'],
-    7:['継続して目標に'],
-    8:['成果とプロセスに対して','行動で'],
-    9:['部下の育成が','マネジャーの貢献を','自己の成長']
-  };
-  TRACKS.manager.items.forEach((item,i)=>{
-    const priority=(managerPriority[i]||[]).filter(p=>item.text.includes(p));
-    const base=[...item.words].filter(w=>!priority.some(p=>p!==w&&(p.includes(w)||w.includes(p))));
-    item._priority=priority;
-    item._blankPool=[...new Set([...base,...priority])].filter(w=>item.text.includes(w)).sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
-  });
-  function randomizeManagerBlanks(item){
-    TRACKS.manager.items.forEach(x=>{if(x._blankPool)x.words=[...x._blankPool]});
-    const pool=[...(item._blankPool||item.words)].filter(w=>item.text.includes(w));
-    if(pool.length<=2){item.words=pool;return}
-    const min=Math.max(2,Math.ceil(pool.length*.4));
-    const max=Math.max(min,Math.min(pool.length,Math.ceil(pool.length*.65)));
-    const count=min+Math.floor(Math.random()*(max-min+1));
-    const priority=new Set(item._priority||[]);
-    item.words=pool.map(w=>({w,key:-Math.log(Math.max(Math.random(),1e-9))/(priority.has(w)?4:1)}))
-      .sort((a,b)=>a.key-b.key).slice(0,count).map(x=>x.w)
+  function prepareDenseBlanks(item){
+    const required=[...(item._denseRequired||item.words||[])];
+    const optional=(item._denseOptional||[]).filter(w=>Math.random()<.35);
+    item.words=[...new Set([...required,...optional])]
+      .filter(w=>item.text.includes(w))
       .sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
   }
   function renderDoneList(count,includeEnd=false){
@@ -83,9 +90,9 @@
       if(!src.includes(OLD3))throw new Error('第3訓の訂正対象が見つかりませんでした');
       if(!src.includes(OLD10))throw new Error('第10訓の訂正対象が見つかりませんでした');
       src=src.replace(OLD3,NEW3).replace(OLD10,NEW10);
-      if(src.includes(ACTIVE_MARKER))src=src.replace(ACTIVE_MARKER,PARTICLE_PATCH+ACTIVE_MARKER);
+      if(src.includes(ACTIVE_MARKER))src=src.replace(ACTIVE_MARKER,DENSE_PATCH+ACTIVE_MARKER);
       if(src.includes(RENDER_OLD))src=src.replace(RENDER_OLD,RENDER_NEW);
-      else throw new Error('ランダム穴埋めの適用箇所が見つかりませんでした');
+      else throw new Error('高密度穴埋めの適用箇所が見つかりませんでした');
       if(src.includes(TOKEN_OLD))src=src.replace(TOKEN_OLD,TOKEN_NEW);
       else throw new Error('番号表示の適用箇所が見つかりませんでした');
       src=src.split('esc(item.text)').join('esc(`${idx+1}. ${item.text}`)');

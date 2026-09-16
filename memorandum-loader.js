@@ -23,7 +23,23 @@
       item.words.sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
     });
   });
-  TRACKS.manager.items.forEach(item=>{item._blankPool=[...item.words]});
+  const managerPriority={
+    0:['まず'],
+    1:['勇気を'],
+    2:['記せ','必ず達成'],
+    3:['指導は','企画','実行'],
+    5:['提案','忘れるな'],
+    6:['数字だけ','プロセスを','部下の成長','部門の業績向上'],
+    7:['継続して目標に'],
+    8:['成果とプロセスに対して','行動で'],
+    9:['部下の育成が','マネジャーの貢献を','自己の成長']
+  };
+  TRACKS.manager.items.forEach((item,i)=>{
+    const priority=(managerPriority[i]||[]).filter(p=>item.text.includes(p));
+    const base=[...item.words].filter(w=>!priority.some(p=>p!==w&&(p.includes(w)||w.includes(p))));
+    item._priority=priority;
+    item._blankPool=[...new Set([...base,...priority])].filter(w=>item.text.includes(w)).sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
+  });
   function randomizeManagerBlanks(item){
     TRACKS.manager.items.forEach(x=>{if(x._blankPool)x.words=[...x._blankPool]});
     const pool=[...(item._blankPool||item.words)].filter(w=>item.text.includes(w));
@@ -31,7 +47,10 @@
     const min=Math.max(2,Math.ceil(pool.length*.4));
     const max=Math.max(min,Math.min(pool.length,Math.ceil(pool.length*.65)));
     const count=min+Math.floor(Math.random()*(max-min+1));
-    item.words=shuffle(pool).slice(0,count).sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
+    const priority=new Set(item._priority||[]);
+    item.words=pool.map(w=>({w,key:-Math.log(Math.max(Math.random(),1e-9))/(priority.has(w)?4:1)}))
+      .sort((a,b)=>a.key-b.key).slice(0,count).map(x=>x.w)
+      .sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
   }
   function renderDoneList(count,includeEnd=false){
     if(!count&&!includeEnd)return '';

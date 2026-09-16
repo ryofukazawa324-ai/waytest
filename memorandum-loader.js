@@ -7,6 +7,8 @@
   const INIT_NEW="if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',ensureLauncher);else ensureLauncher();";
   const ACTIVE_MARKER="  let active=false,track='business',level='choice',idx=0,selected=[];";
   const FINISH_MARKER="  function renderFinish(){state.sessionStarted=false;save();";
+  const RENDER_OLD="  function renderQuestion(){const main=app(),set=TRACKS[track],item=set.items[idx],st=getStat(track,idx,level),n=set.items.length;selected=[];if(!item)return renderFinish();";
+  const RENDER_NEW="  function renderQuestion(){const main=app(),set=TRACKS[track],item=set.items[idx];if(item&&track==='manager'&&(level==='choice'||level==='input'))randomizeManagerBlanks(item);const st=getStat(track,idx,level),n=set.items.length;selected=[];if(!item)return renderFinish();";
   const PARTICLE_PATCH=`  const particleAdds={
     business:{0:['と'],1:['と'],3:['は'],6:['と'],8:['で']},
     manager:{0:['で'],1:['と'],4:['で'],6:['と'],7:['に'],9:['と']},
@@ -19,6 +21,16 @@
       item.words.sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
     });
   });
+  TRACKS.manager.items.forEach(item=>{item._blankPool=[...item.words]});
+  function randomizeManagerBlanks(item){
+    TRACKS.manager.items.forEach(x=>{if(x._blankPool)x.words=[...x._blankPool]});
+    const pool=[...(item._blankPool||item.words)].filter(w=>item.text.includes(w));
+    if(pool.length<=2){item.words=pool;return}
+    const min=Math.max(2,Math.ceil(pool.length*.4));
+    const max=Math.max(min,Math.min(pool.length,Math.ceil(pool.length*.65)));
+    const count=min+Math.floor(Math.random()*(max-min+1));
+    item.words=shuffle(pool).slice(0,count).sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
+  }
 `;
   const FINISH_PATCH=`  function renderFinish(){return renderClosing()}
   function renderClosing(){
@@ -44,6 +56,8 @@
       if(!src.includes(OLD10))throw new Error('第10訓の訂正対象が見つかりませんでした');
       src=src.replace(OLD3,NEW3).replace(OLD10,NEW10);
       if(src.includes(ACTIVE_MARKER))src=src.replace(ACTIVE_MARKER,PARTICLE_PATCH+ACTIVE_MARKER);
+      if(src.includes(RENDER_OLD))src=src.replace(RENDER_OLD,RENDER_NEW);
+      else throw new Error('ランダム穴埋めの適用箇所が見つかりませんでした');
       if(src.includes(FINISH_MARKER))src=src.replace(FINISH_MARKER,FINISH_PATCH);
       if(src.includes(INIT_OLD))src=src.replace(INIT_OLD,INIT_NEW);
       (0,eval)(src+'\n//# sourceURL=memorandum-v2-corrected.js');

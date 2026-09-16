@@ -33,11 +33,18 @@
     const count=min+Math.floor(Math.random()*(max-min+1));
     item.words=shuffle(pool).slice(0,count).sort((a,b)=>item.text.indexOf(a)-item.text.indexOf(b));
   }
+  function renderDoneList(count,includeEnd=false){
+    if(!count&&!includeEnd)return '';
+    const set=TRACKS[track],limit=Math.min(count,set.items.length);
+    const rows=set.items.slice(0,limit).map((item,i)=>\`<div style="padding:8px 0;border-bottom:1px solid #e6e9f0;line-height:1.65"><b>\${i+1}.</b> \${esc(item.text)}</div>\`).join('');
+    const end=includeEnd?\`<div style="padding:10px 0 2px;font-weight:900">以上</div>\`:'';
+    return \`<div class="box"><div class="ttl">\${includeEnd?'完成形':'ここまでの完成文'}</div><div style="font-size:14px">\${rows}\${end}</div></div>\`;
+  }
 `;
   const FINISH_PATCH=`  function renderFinish(){return renderClosing()}
   function renderClosing(){
     const main=app(),set=TRACKS[track];
-    main.innerHTML=\`<div data-memo-root><div class="box"><div class="ttl">\${esc(set.title)}｜最後の締め</div><div class="q">最後に「以上」と入力してください。</div><input id="memoEndInput" autocomplete="off" autocapitalize="none" placeholder="ここに入力"><div class="acts"><button class="pri" id="memoEndCheck">締める</button></div><div class="sub" id="memoEndMsg" style="margin-top:8px"></div></div></div>\`;
+    main.innerHTML=\`<div data-memo-root>\${renderDoneList(set.items.length)}<div class="box"><div class="ttl">\${esc(set.title)}｜最後の締め</div><div class="q">最後に「以上」と入力してください。</div><input id="memoEndInput" autocomplete="off" autocapitalize="none" placeholder="ここに入力"><div class="acts"><button class="pri" id="memoEndCheck">締める</button></div><div class="sub" id="memoEndMsg" style="margin-top:8px"></div></div></div>\`;
     const input=document.getElementById('memoEndInput'),msg=document.getElementById('memoEndMsg');
     const check=()=>{
       if(norm(input.value)==='以上'){renderFinalFinish();return}
@@ -63,7 +70,21 @@
       if(src.includes(TOKEN_OLD))src=src.replace(TOKEN_OLD,TOKEN_NEW);
       else throw new Error('番号表示の適用箇所が見つかりませんでした');
       src=src.split('esc(item.text)').join('esc(`${idx+1}. ${item.text}`)');
+      const qStart=src.indexOf('  function renderQuestion(){');
+      const qEnd=src.indexOf('  function renderChoice',qStart);
+      if(qStart>=0&&qEnd>qStart){
+        let block=src.slice(qStart,qEnd);
+        block=block.replace('main.innerHTML=`<div data-memo-root>','main.innerHTML=`<div data-memo-root>${renderDoneList(idx)}');
+        src=src.slice(0,qStart)+block+src.slice(qEnd);
+      }else throw new Error('積み上げ表示の適用箇所が見つかりませんでした');
       if(src.includes(FINISH_MARKER))src=src.replace(FINISH_MARKER,FINISH_PATCH);
+      const fStart=src.indexOf('  function renderFinalFinish(){');
+      const fEnd=src.indexOf("  window.addEventListener('DOMContentLoaded'",fStart);
+      if(fStart>=0&&fEnd>fStart){
+        let block=src.slice(fStart,fEnd);
+        block=block.replace('main.innerHTML=`<div data-memo-root>','main.innerHTML=`<div data-memo-root>${renderDoneList(total(),true)}');
+        src=src.slice(0,fStart)+block+src.slice(fEnd);
+      }else throw new Error('完成形表示の適用箇所が見つかりませんでした');
       if(src.includes(INIT_OLD))src=src.replace(INIT_OLD,INIT_NEW);
       (0,eval)(src+'\n//# sourceURL=memorandum-v2-corrected.js');
     })

@@ -10,6 +10,7 @@
       };
 
       src=src.replace('句読点まで続く部分を1つの空欄として入力。入力中に判定します。','句読点まで続く部分を1つの空欄として入力。答え合わせ時に判定します。');
+      src=src.replace("main.parentElement.insertBefore(box,main);","main.parentElement.insertBefore(box,main);if(document.documentElement.dataset.examRunning==='1')box.style.display='none';");
 
       replaceBlock('  function renderInput(item){','  async function gradeInput(item){',`  function renderInput(item){
     const card=document.getElementById('memoCard');

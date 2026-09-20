@@ -39,8 +39,13 @@ function selectExam(){
   while(pts<10){
     let fit=ordered.filter(x=>pts+weight(x)<=10);
     if(!fit.length)break;
-    let choices=fit.filter(x=>examKind(x)!==lastKind);
-    if(!choices.length)choices=fit;
+    let unseenFit=fit.filter(x=>!seen.has(qid(x)));
+    let priority=unseenFit.length?unseenFit:fit;
+    let choices=priority.filter(x=>examKind(x)!==lastKind);
+    if(!choices.length){
+      let alternate=fit.filter(x=>examKind(x)!==lastKind);
+      choices=alternate.length?alternate:priority;
+    }
     let x=choices[Math.floor(Math.random()*choices.length)],p=ordered.indexOf(x);
     if(p>=0)ordered.splice(p,1);
     picked.push(x);pts+=weight(x);lastKind=examKind(x);

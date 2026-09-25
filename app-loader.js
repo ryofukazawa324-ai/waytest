@@ -2,7 +2,7 @@
   const load=()=>{
     if(document.querySelector('script[data-waytest-app]'))return;
     const s=document.createElement('script');
-    s.src='app-v8.js?v=5';
+    s.src='app-v8.js?v=6';
     s.dataset.waytestApp='1';
     document.body.appendChild(s);
   };

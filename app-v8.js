@@ -78,11 +78,58 @@ function typedHTML(id){return `<textarea id="${id}" placeholder="回答を入力
 function fiveSHTML(prefix){return `<div class="fivebox"><div class="sub"><b>5Sセット・5点</b>｜各項目1点。5つすべて回答してください。</div>${fiveSItems().map((z,i)=>`<label class="fiverow"><b>${z.name}</b><textarea id="${prefix}${i}" placeholder="${z.name}の意味を入力"></textarea></label>`).join('')}</div>`}
 function setupFiveS(prefix,judgeId,answerId,gradeId,done){const items=fiveSItems(),judge=document.getElementById(judgeId),ans=document.getElementById(answerId),grade=document.getElementById(gradeId),checks=Array(items.length).fill(null);judge.onclick=()=>{let inputs=items.map((_,i)=>document.getElementById(prefix+i));if(inputs.every(x=>!x.value.trim())&&!confirm('未記入で答えを見ますか？'))return;inputs.forEach(x=>x.disabled=true);ans.classList.add('show');grade.style.display='block';grade.innerHTML=items.map((z,i)=>`<div class="fivegrade"><div><b>${z.name}</b>：${esc(z.answer)}</div><div class="acts"><button class="b" data-fi="${i}" data-fv="1">○ できた</button><button class="b danger" data-fi="${i}" data-fv="0">× できなかった</button></div></div>`).join('')+'<div class="acts"><button class="pri" id="fiveDone" disabled>5Sを採点して次へ</button></div>';judge.style.display='none';grade.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>{let i=+b.dataset.fi,v=+b.dataset.fv;checks[i]=v;grade.querySelectorAll(`[data-fi="${i}"]`).forEach(x=>x.classList.toggle('on',x===b));document.getElementById('fiveDone').disabled=checks.some(x=>x===null)});document.getElementById('fiveDone').onclick=()=>done(checks.reduce((a,b)=>a+b,0),items.map((z,i)=>({name:z.name,result:checks[i]?'ok':'ng',answer:z.answer})))}}
 
-function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">通常問題は1点。5Sセットが出た場合は5項目×1点＝5点です。クリア済みより未クリア問題を優先します。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()}}
+function circled(n){const a=['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮'];return a[n]||('['+(n+1)+']')}
+function examParts(x){
+  const q=String(x[2]||''),answer=String(x[3]||'').trim();
+  let segs=answer.split('／').map(s=>s.trim()).filter(Boolean);
+  if(segs.length===1&&answer.includes('→'))segs=answer.split('→').map(s=>s.trim()).filter(Boolean);
+  if(segs.length===1){
+    const sentences=answer.split('。').map(s=>s.trim()).filter(Boolean);
+    if(sentences.length>1)segs=sentences;
+  }
+  if(segs.length===1&&answer.includes('・')&&/(\d+|[二三四五六七八九十])つ|ポイント|要素|順番|項目|答える/.test(q)){
+    const dots=answer.split('・').map(s=>s.trim()).filter(Boolean);
+    if(dots.length>1&&dots.length<=10)segs=dots;
+  }
+  return segs.map(s=>{
+    let at=s.indexOf('＝');
+    if(at>0&&at<18)return {hint:s.slice(0,at).trim(),expected:s.slice(at+1).trim()};
+    at=s.indexOf('：');
+    if(at>0&&at<18)return {hint:s.slice(0,at).trim(),expected:s.slice(at+1).trim()};
+    return {hint:'',expected:s};
+  });
+}
+function examInputHTML(x,prefix='ei_'){
+  const parts=examParts(x);
+  return `<div class="fivebox"><div class="sub"><b>入力問題</b>｜①から順に入力</div>${parts.map((p,i)=>`<label class="fiverow"><b>${circled(i)}${p.hint?' '+esc(p.hint):''}</b><input id="${prefix}${i}" autocomplete="off" autocapitalize="none" placeholder="答えを入力"></label>`).join('')}</div>`;
+}
+function examFiveSHTML(prefix){
+  return `<div class="fivebox"><div class="sub"><b>5Sセット・5点</b>｜①から⑤まで入力</div>${fiveSItems().map((z,i)=>`<label class="fiverow"><b>${circled(i)} ${z.name}</b><input id="${prefix}${i}" autocomplete="off" autocapitalize="none" placeholder="${z.name}の意味を入力"></label>`).join('')}</div>`;
+}
+function examAnswerHTML(parts){
+  return parts.map((p,i)=>`<div class="fivegrade"><b>${circled(i)}${p.hint?' '+esc(p.hint):''}</b>：${esc(p.expected)}</div>`).join('');
+}
+function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">本番はすべて①②③…を埋める入力式です。概要問題も答えの要素ごとに分けて出題します。通常問題は1点、5Sは5点です。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()}}
 function showExam(){
-setMemoVisible(false);lock=false;let x=quiz[idx],am=answerMode(x),hand=am==='hand',five=am==='five',donePts=quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0);app.innerHTML=`<div class="card"><div class="meta">本番10点｜${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':x[1]+' 1点'}</div><div class="prog"><i style="width:${donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?fiveSHTML('e5_'):hand?charPadHTML():typedHTML('txt')}<div class="acts"><button class="pri" id="judgeBtn">${five?'5Sを答え合わせ':hand?'回答を判定':'答え合わせ'}</button></div><div class="ans" id="ans">${five?'<b>各項目を1点ずつ自己採点してください。</b>':`<b>正答例：</b>${x[3]}<div class="exp">${x[4]}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
+setMemoVisible(false);lock=false;let x=quiz[idx],five=is5S(x),donePts=quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0),parts=five?[]:examParts(x);
+app.innerHTML=`<div class="card"><div class="meta">本番10点｜${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':'入力問題 1点'}</div><div class="prog"><i style="width:${donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?examFiveSHTML('e5_'):examInputHTML(x)}<div class="acts"><button class="pri" id="judgeBtn">答え合わせ</button></div><div class="ans" id="ans">${five?'<b>各項目を確認して採点してください。</b>':`<b>正答：</b>${examAnswerHTML(parts)}<div class="exp">${esc(x[4]||'')}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
 if(five){setupFiveS('e5_','judgeBtn','ans','grade',(points,subs)=>commit5(points,subs));return}
-let cp=hand?setupCharPad():null,txt=hand?null:document.getElementById('txt'),btn=document.getElementById('judgeBtn'),ans=document.getElementById('ans'),grade=document.getElementById('grade');btn.onclick=()=>{if(hand){if(cp.isBusy())return;if(cp.hasPending())return alert('書いている1文字が未確定です。「この1文字を確定」を押してください。');let v=cp.value();if(!v)return alert('回答を入力してください');let ok=norm(v)===norm(x[3]);ans.classList.add('show');grade.style.display='flex';grade.innerHTML=`<div class="recog ${ok?'recogok':'recogng'}"><b>${ok?'○ 正解':'× 不正解'}</b><div class="recogtext">あなたの回答：${esc(v)}</div></div><button class="pri" id="next">次へ</button>${!ok?'<button class="b" id="override">認識ミスなので正解扱い</button>':''}`;btn.style.display='none';document.getElementById('next').onclick=()=>commit(ok?'ok':'ng',ok?1:0);if(!ok)document.getElementById('override').onclick=()=>commit('ok',1)}else{if(!txt.value.trim()&&!confirm('未記入で答えを見ますか？'))return;txt.disabled=true;ans.classList.add('show');grade.style.display='flex';grade.innerHTML='<button class="pri" data-g="ok">○ 正解</button><button class="b danger" data-g="ng">× 不正解</button>';btn.style.display='none';grade.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>commit(b.dataset.g,b.dataset.g==='ok'?1:0))}};
+const inputs=parts.map((_,i)=>document.getElementById('ei_'+i)),btn=document.getElementById('judgeBtn'),ans=document.getElementById('ans'),grade=document.getElementById('grade');
+btn.onclick=()=>{
+  const vals=inputs.map(i=>i.value.trim());
+  if(vals.every(v=>!v)&&!confirm('未記入で答えを見ますか？'))return;
+  inputs.forEach(i=>i.disabled=true);
+  const exact=vals.length===parts.length&&vals.every((v,i)=>norm(v)===norm(parts[i].expected));
+  ans.classList.add('show');grade.style.display='flex';btn.style.display='none';
+  if(exact){
+    grade.innerHTML='<div class="recog recogok"><b>○ 正解</b></div><button class="pri" id="next">次へ</button>';
+    document.getElementById('next').onclick=()=>commit('ok',1);
+  }else{
+    grade.innerHTML='<button class="pri" data-g="ok">○ 内容は合ってる</button><button class="b danger" data-g="ng">× 不正解</button>';
+    grade.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>commit(b.dataset.g,b.dataset.g==='ok'?1:0));
+  }
+};
+inputs.forEach((inp,i)=>inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();const next=inputs[i+1];if(next)next.focus();else btn.click()}}));
 function next(){if(++idx<quiz.length)showExam();else finish()}
 function commit(r,points){if(lock)return;lock=true;mark(x,r);markSeen(x,r==='ok');run.answers.push({key:key(x),v:x[0],q:x[2],answer:x[3],exp:x[4],result:r,points,maxPoints:1});next()}
 function commit5(points,subs){if(lock)return;lock=true;let r=points===5?'ok':points===0?'ng':'mid';mark(x,r);markSeen(x,points===5);run.answers.push({key:key(x),v:x[0],q:'5Sの5項目',result:r,points,maxPoints:5,subresults:subs});next()}}

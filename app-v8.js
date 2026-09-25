@@ -63,7 +63,7 @@ function buttons(){document.querySelectorAll('[data-v]').forEach(b=>b.classList.
 function stats(){st.textContent=pool().length;sd.textContent=H.length;if(H.length){let avg=H.reduce((a,h)=>a+(Number(h.score)||0),0)/H.length;sr.textContent=avg.toFixed(1)+'/10';sw.textContent=(Number(H[0].score)||0)+'/10'}else sr.textContent=sw.textContent='—'}
 document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{let v=+b.dataset.v;if(vols.includes(v)){if(vols.length===1)return alert('1巻以上選んでください');vols=vols.filter(n=>n!==v)}else vols.push(v);vols.sort();saveV();render()});
 document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-m]').forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.m;render()});
-function render(){setMemoVisible(true);buttons();stats();({exam:examHome,learn:learn,fill:()=>startPractice(pool().filter(x=>x[1]==='穴埋め'),'穴埋め練習'),lesson:()=>startPractice(pool().filter(x=>x[1]!=='穴埋め'),'概要練習'),weak:()=>startPractice(weak(),'苦手復習'),history:history}[mode])()}
+function render(){setMemoVisible(true);buttons();stats();({exam:examHome,learn:learn,items:itemList,fill:()=>startPractice(pool().filter(x=>x[1]==='穴埋め'),'穴埋め練習'),lesson:()=>startPractice(pool().filter(x=>x[1]!=='穴埋め'),'概要練習'),weak:()=>startPractice(weak(),'苦手復習'),history:history}[mode])()}
 
 function charPadHTML(){return `<div class="charbox"><div class="handlabel">1文字ずつ手書き <span>書いたら「この1文字を確定」</span></div><div class="assembled" id="assembled">まだ入力されていません</div><div class="charrow"><canvas id="charpad" class="charpad"></canvas><div class="charhelp"><b>次の1文字</b><div id="charstatus">1文字書いて、確定ボタンを押してください</div></div></div><div class="acts"><button class="pri" id="confirmChar">この1文字を確定</button><button class="b" id="clearInk">書き直す</button></div><div id="charcands"></div><div class="acts"><button class="b" id="undoChar">← 1文字戻す</button><button class="b danger" id="clearAnswer">全部消す</button></div></div>`}
 function setupCharPad(){
@@ -145,6 +145,32 @@ let cp=hand?setupCharPad():null,txt=hand?null:document.getElementById('ptxt'),bt
 function next(){if(++idx<quiz.length)showPractice(title);else render()}
 function commit(r){if(lock)return;lock=true;mark(x,r);markSeen(x,r==='ok');next()}
 function commit5(points){if(lock)return;lock=true;let r=points===5?'ok':points===0?'ng':'mid';mark(x,r);markSeen(x,points===5);next()}}
+
+function itemList(){
+  const rows=pool();
+  app.innerHTML=`<div class="box"><div class="ttl">問題の元になっている項目一覧</div><div class="sub">選択中の ${vt()} の項目を一覧表示します。ここは閲覧専用で、成績には影響しません。</div><input id="itemSearch" placeholder="項目・答え・キーワードで検索"><div id="itemListBody"></div></div>`;
+  const search=document.getElementById('itemSearch'),body=document.getElementById('itemListBody');
+  const draw=()=>{
+    const k=String(search.value||'').trim().toLowerCase();
+    let items=rows.filter(x=>{
+      if(is5SChild(x))return false;
+      const text=is5S(x)
+        ?[x[2],...fiveSItems().flatMap(z=>[z.name,z.answer,z.exp||''])].join(' ')
+        :[x[1],x[2],x[3],x[4]].join(' ');
+      return !k||text.toLowerCase().includes(k)
+    });
+    const groups=vols.slice().sort((a,b)=>a-b).map(v=>[v,items.filter(x=>x[0]===v)]).filter(([,a])=>a.length);
+    body.innerHTML=groups.length?groups.map(([v,a])=>`
+      <div class="card">
+        <div class="ttl">第${v}巻 <span class="tag">${a.length}項目</span></div>
+        ${a.map((x,n)=>is5S(x)
+          ?`<div class="rankitem"><div class="meta">5Sセット</div><div class="q">5S</div><div style="margin-top:8px;line-height:1.7">${fiveSItems().map(z=>`<div><b>${esc(z.name)}</b>：${esc(z.answer)}</div>`).join('')}</div></div>`
+          :`<div class="rankitem"><div class="meta">${esc(x[1])}</div><div class="q" style="font-size:14px">${esc(x[2])}</div><div style="margin-top:7px;line-height:1.65"><b>答え・内容：</b>${esc(x[3])}</div>${x[4]?`<div class="exp">補足：${esc(x[4])}</div>`:''}</div>`
+        ).join('')}
+      </div>`).join(''):'<div class="empty">該当する項目がありません。</div>'
+  };
+  search.oninput=draw;draw()
+}
 
 function learn(){app.innerHTML='<div class="box"><div class="ttl">学習カード</div><input id="sea" placeholder="キーワード検索"><div id="cards"></div></div>';let sea=document.getElementById('sea'),cards=document.getElementById('cards'),f=()=>{let k=sea.value.toLowerCase(),a=pool().filter(x=>!k||(x[2]+x[3]+x[4]+(is5S(x)?fiveSItems().map(z=>z.name+z.answer).join(''):'')).toLowerCase().includes(k));cards.innerHTML=a.map((x,n)=>is5S(x)?`<div class="card"><div class="meta">第1巻｜5Sセット</div><div class="q">5Sの5項目</div><div class="ans" id="a${n}">${fiveSItems().map(z=>`<div><b>${z.name}</b>：${esc(z.answer)}</div>`).join('')}</div><button class="b" onclick="document.getElementById('a${n}').classList.toggle('show')">答えを見る</button></div>`:`<div class="card"><div class="meta">第${x[0]}巻｜${x[1]}</div><div class="q">${x[2]}</div><div class="ans" id="a${n}"><b>答え：</b>${x[3]}<div class="exp">${x[4]}</div></div><button class="b" onclick="document.getElementById('a${n}').classList.toggle('show')">答えを見る</button></div>`).join('')};sea.oninput=f;f()}
 

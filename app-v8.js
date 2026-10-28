@@ -14,7 +14,7 @@ init();}catch(e){document.getElementById('app').innerHTML='<div class="box empty
 function init(){
 const app=document.getElementById('app'),st=document.getElementById('st'),sd=document.getElementById('sd'),sr=document.getElementById('sr'),sw=document.getElementById('sw');
 let vols=JSON.parse(localStorage.getItem('waytest-volumes-v1')||'[1,2,6]').map(Number).filter(v=>[1,2,6].includes(v));if(!vols.length)vols=[1,2,6];
-let mode='exam',quiz=[],idx=0,run=null,lock=false;
+let mode='exam',quiz=[],idx=0,run=null,lock=false,reviewMode=false;
 const S=JSON.parse(localStorage.getItem('waytest-v1')||'{}'),H=JSON.parse(localStorage.getItem('waytest-history-v1')||'[]');
 const CYCLE_KEY='waytest-question-seen-v3';
 let seen=new Set((()=>{try{let a=JSON.parse(localStorage.getItem(CYCLE_KEY)||'[]');return Array.isArray(a)?a:[]}catch{return []}})());
@@ -109,7 +109,7 @@ function examFiveSHTML(prefix){
 function examAnswerHTML(parts){
   return parts.map((p,i)=>`<div class="fivegrade"><b>${circled(i)}${p.hint?' '+esc(p.hint):''}</b>：${esc(p.expected)}</div>`).join('');
 }
-function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">本番はすべて①②③…を埋める入力式です。概要問題も答えの要素ごとに分けて出題します。通常問題は1点、5Sは5点です。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()}}
+function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">本番はすべて①②③…を埋める入力式です。概要問題も答えの要素ごとに分けて出題します。通常問題は1点、5Sは5点です。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{reviewMode=false;quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()}}
 function showExam(){
 setMemoVisible(false);lock=false;let x=quiz[idx],five=is5S(x),donePts=quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0),parts=five?[]:examParts(x);
 app.innerHTML=`<div class="card"><div class="meta">本番10点｜${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':'入力問題 1点'}</div><div class="prog"><i style="width:${donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?examFiveSHTML('e5_'):examInputHTML(x)}<div class="acts"><button class="pri" id="judgeBtn">答え合わせ</button></div><div class="ans" id="ans">${five?'<b>各項目を確認して採点してください。</b>':`<b>正答：</b>${examAnswerHTML(parts)}<div class="exp">${esc(x[4]||'')}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
@@ -133,9 +133,28 @@ inputs.forEach((inp,i)=>inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!
 function next(){if(++idx<quiz.length)showExam();else finish()}
 function commit(r,points){if(lock)return;lock=true;mark(x,r);markSeen(x,r==='ok');run.answers.push({key:key(x),v:x[0],q:x[2],answer:x[3],exp:x[4],result:r,points,maxPoints:1});next()}
 function commit5(points,subs){if(lock)return;lock=true;let r=points===5?'ok':points===0?'ng':'mid';mark(x,r);markSeen(x,points===5);run.answers.push({key:key(x),v:x[0],q:'5Sの5項目',result:r,points,maxPoints:5,subresults:subs});next()}}
+function startWrongReview(){
+  const previous=H[0];
+  const source=run&&!reviewMode?run.answers:previous?.answers||[];
+  const missed=[];
+  source.forEach(a=>{
+    if(a.subresults){
+      a.subresults.filter(s=>s.result!=='ok').forEach(s=>{
+        const x=Q.find(q=>q[0]===1&&String(q[2])===`5Sの「${s.name}」とは？`);
+        if(x)missed.push(x);
+      });
+    }else if(a.result!=='ok'||((a.points??(a.result==='ok'?1:0))<(a.maxPoints||1))){
+      const x=Q.find(q=>q[0]===a.v&&String(q[2])===String(a.q));
+      if(x)missed.push(x);
+    }
+  });
+  const unique=[...new Map(missed.map(x=>[qid(x),x])).values()];
+  if(!unique.length){alert('復習する間違い問題がありません。');return}
+  reviewMode=true;quiz=shuffle(unique);idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:unique.length};showExam()
+}
 function answerFor(a){if(a?.answer)return a.answer;let x=Q.find(x=>x[0]===a?.v&&String(x[2])===String(a?.q));return x?x[3]:''}
 function fiveAnswer(s){if(s?.answer)return s.answer;let z=fiveSItems().find(x=>x.name===s?.name);return z?z.answer:''}
-function finish(){setMemoVisible(true);let score=run.answers.reduce((s,a)=>s+(Number(a.points)??(a.result==='ok'?1:0)),0);run.score=score;run.maxScore=10;run.date=new Date().toISOString();H.unshift(run);saveH();let prev=H[1],d=prev?score-(Number(prev.score)||0):null,w=run.answers.filter(a=>(a.points??(a.result==='ok'?1:0))<(a.maxPoints||1));app.innerHTML=`<div class="box"><div class="ttl">本番10点 結果</div><div class="score">${score}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}点</span>`}</div><div class="sub">${fmt(run.date)}｜${vt(run.volumes)}</div><div class="acts"><button class="pri" id="again">もう一度</button><button class="b" id="hist">記録・傾向</button></div></div><div class="box"><div class="ttl">今回の苦手・間違い</div>${w.length?w.map(a=>`<div class="rankitem"><b>第${a.v}巻｜${esc(a.q)}</b>${a.subresults?a.subresults.filter(s=>s.result!=='ok').map(s=>`<div style="margin-top:8px;padding:9px 10px;background:#fff6f6;border-radius:10px"><b>× ${esc(s.name)}</b><div class="rankmeta" style="margin-top:5px"><b>正答：</b>${esc(fiveAnswer(s)||'—')}</div></div>`).join(''):`<div style="margin-top:8px;padding:9px 10px;background:#f5f7ff;border-radius:10px"><div class="rankmeta"><b>正答：</b>${esc(answerFor(a)||'—')}</div></div>`}</div>`).join(''):'<div class="good">全問正解！</div>'}</div>`;document.getElementById('again').onclick=examHome;document.getElementById('hist').onclick=()=>{mode='history';document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m==='history'));render()};stats()}
+function finish(){setMemoVisible(true);let score=run.answers.reduce((s,a)=>s+(Number(a.points)??(a.result==='ok'?1:0)),0);if(reviewMode){app.innerHTML=`<div class="box"><div class="ttl">間違えた問題の復習完了</div><div class="q">復習問題を最後まで解きました。</div><div class="acts"><button class="pri" id="reviewAgain">もう一度</button><button class="b" id="reviewHome">本番10点へ戻る</button></div></div>`;document.getElementById('reviewAgain').onclick=startWrongReview;document.getElementById('reviewHome').onclick=examHome;return}run.score=score;run.maxScore=10;run.date=new Date().toISOString();H.unshift(run);saveH();let prev=H[1],d=prev?score-(Number(prev.score)||0):null,w=run.answers.filter(a=>(a.points??(a.result==='ok'?1:0))<(a.maxPoints||1));app.innerHTML=`<div class="box"><div class="ttl">本番10点 結果</div><div class="score">${score}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}点</span>`}</div><div class="sub">${fmt(run.date)}｜${vt(run.volumes)}</div><div class="acts"><button class="pri" id="again">新しい本番テスト</button><button class="b" id="retryWrong" \${w.length?'':'disabled'}>間違えた問題だけもう一度</button><button class="b" id="hist">記録・傾向</button></div></div><div class="box"><div class="ttl">今回の苦手・間違い</div>${w.length?w.map(a=>`<div class="rankitem"><b>第${a.v}巻｜${esc(a.q)}</b>${a.subresults?a.subresults.filter(s=>s.result!=='ok').map(s=>`<div style="margin-top:8px;padding:9px 10px;background:#fff6f6;border-radius:10px"><b>× ${esc(s.name)}</b><div class="rankmeta" style="margin-top:5px"><b>正答：</b>${esc(fiveAnswer(s)||'—')}</div></div>`).join(''):`<div style="margin-top:8px;padding:9px 10px;background:#f5f7ff;border-radius:10px"><div class="rankmeta"><b>正答：</b>${esc(answerFor(a)||'—')}</div></div>`}</div>`).join(''):'<div class="good">全問正解！</div>'}</div>`;document.getElementById('again').onclick=examHome;document.getElementById('retryWrong').onclick=startWrongReview;document.getElementById('hist').onclick=()=>{mode='history';document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m==='history'));render()};stats()}
 
 function startPractice(a,title){if(!a.length){app.innerHTML='<div class="box empty">対象問題がありません。</div>';return}quiz=cycleOrder(a);idx=0;showPractice(title)}
 function showPractice(title){

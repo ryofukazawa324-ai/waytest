@@ -14,7 +14,7 @@ init();}catch(e){document.getElementById('app').innerHTML='<div class="box empty
 function init(){
 const app=document.getElementById('app'),st=document.getElementById('st'),sd=document.getElementById('sd'),sr=document.getElementById('sr'),sw=document.getElementById('sw');
 let vols=JSON.parse(localStorage.getItem('waytest-volumes-v1')||'[1,2,6]').map(Number).filter(v=>[1,2,6].includes(v));if(!vols.length)vols=[1,2,6];
-let mode='exam',quiz=[],idx=0,run=null,lock=false,reviewMode=false;
+let mode='exam',quiz=[],idx=0,run=null,lock=false,reviewMode=false,endlessMode=false;
 const S=JSON.parse(localStorage.getItem('waytest-v1')||'{}'),H=JSON.parse(localStorage.getItem('waytest-history-v1')||'[]');
 const CYCLE_KEY='waytest-question-seen-v3';
 let seen=new Set((()=>{try{let a=JSON.parse(localStorage.getItem(CYCLE_KEY)||'[]');return Array.isArray(a)?a:[]}catch{return []}})());
@@ -109,10 +109,12 @@ function examFiveSHTML(prefix){
 function examAnswerHTML(parts){
   return parts.map((p,i)=>`<div class="fivegrade"><b>${circled(i)}${p.hint?' '+esc(p.hint):''}</b>：${esc(p.expected)}</div>`).join('');
 }
-function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">本番はすべて①②③…を埋める入力式です。概要問題も答えの要素ごとに分けて出題します。通常問題は1点、5Sは5点です。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{reviewMode=false;quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()}}
+function examHome(){let h=H[0],p=H[1],d=h&&p?(Number(h.score)||0)-(Number(p.score)||0):null;app.innerHTML=`<div class="box"><div class="ttl">本番10点</div><div class="q">${vt()} からランダムで10点分</div><div class="sub">本番はすべて①②③…を埋める入力式です。概要問題も答えの要素ごとに分けて出題します。通常問題は1点、5Sは5点です。</div><div class="acts"><button class="pri" id="start">10点テストを開始</button><button class="b" id="startEndless">解き続けるモード</button></div>${h?`<div class="card"><div class="meta">直近 ${fmt(h.date)}｜${vt(h.volumes)}</div><div class="score">${Number(h.score)||0}/10点 ${d===null?'':`<span class="delta ${d>0?'up':d<0?'down':'flat'}">${d>0?'↑ +':d<0?'↓ ':''}${d}</span>`}</div></div>`:''}</div>`;document.getElementById('start').onclick=()=>{reviewMode=false;endlessMode=false;quiz=selectExam();idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:10};showExam()};document.getElementById('startEndless').onclick=startEndless}
+function startEndless(){reviewMode=false;endlessMode=true;quiz=shuffle(pool());idx=0;run={date:new Date().toISOString(),volumes:[...vols],answers:[],maxScore:0};showExam()}
 function showExam(){
-setMemoVisible(false);lock=false;let x=quiz[idx],five=is5S(x)&&!reviewMode,donePts=quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0),parts=five?[]:examParts(x);
-app.innerHTML=`<div class="card"><div class="meta">本番10点｜${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':'入力問題 1点'}</div><div class="prog"><i style="width:${donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?examFiveSHTML('e5_'):examInputHTML(x)}<div class="acts"><button class="pri" id="judgeBtn">答え合わせ</button></div><div class="ans" id="ans">${five?'<b>各項目を確認して採点してください。</b>':`<b>正答：</b>${examAnswerHTML(parts)}<div class="exp">${esc(x[4]||'')}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
+setMemoVisible(false);lock=false;let x=quiz[idx],five=is5S(x)&&!reviewMode,donePts=endlessMode?run.answers.length:quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0),parts=five?[]:examParts(x);
+app.innerHTML=`<div class="card"><div class="meta">${endlessMode?'解き続けるモード｜回答 '+run.answers.length+' 問｜':reviewMode?'間違い復習｜':'本番10点｜'}${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':'入力問題 1点'}${endlessMode?'<button class="b" id="endEndless" style="float:right;padding:4px 8px">終了</button>':''}</div><div class="prog"><i style="width:${endlessMode?Math.min(100,donePts%10*10):donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?examFiveSHTML('e5_'):examInputHTML(x)}<div class="acts"><button class="pri" id="judgeBtn">答え合わせ</button></div><div class="ans" id="ans">${five?'<b>各項目を確認して採点してください。</b>':`<b>正答：</b>${examAnswerHTML(parts)}<div class="exp">${esc(x[4]||'')}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
+if(endlessMode)document.getElementById('endEndless').onclick=()=>{endlessMode=false;examHome()};
 if(five){setupFiveS('e5_','judgeBtn','ans','grade',(points,subs)=>commit5(points,subs));return}
 const inputs=parts.map((_,i)=>document.getElementById('ei_'+i)),btn=document.getElementById('judgeBtn'),ans=document.getElementById('ans'),grade=document.getElementById('grade');
 btn.onclick=()=>{
@@ -121,7 +123,10 @@ btn.onclick=()=>{
   inputs.forEach(i=>i.disabled=true);
   const exact=vals.length===parts.length&&vals.every((v,i)=>norm(v)===norm(parts[i].expected));
   ans.classList.add('show');grade.style.display='flex';btn.style.display='none';
-  if(exact){
+  if(endlessMode){
+    grade.innerHTML=`<button class="pri" data-endless="ok">○ 正解</button><button class="b danger" data-endless="ng">× 間違えた</button>`;
+    grade.querySelectorAll('[data-endless]').forEach(b=>b.onclick=()=>commit(b.dataset.endless,b.dataset.endless==='ok'?1:0));
+  }else if(exact){
     grade.innerHTML='<div class="recog recogok"><b>○ 正解</b></div><button class="pri" id="next">次へ</button>';
     document.getElementById('next').onclick=()=>commit('ok',1);
   }else{
@@ -130,7 +135,7 @@ btn.onclick=()=>{
   }
 };
 inputs.forEach((inp,i)=>inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();const next=inputs[i+1];if(next)next.focus();else btn.click()}}));
-function next(){if(++idx<quiz.length)showExam();else finish()}
+function next(){if(++idx<quiz.length)showExam();else if(endlessMode){quiz=shuffle(pool());idx=0;showExam()}else finish()}
 function commit(r,points){if(lock)return;lock=true;mark(x,r);markSeen(x,r==='ok');run.answers.push({key:key(x),v:x[0],q:x[2],answer:x[3],exp:x[4],result:r,points,maxPoints:1});next()}
 function commit5(points,subs){if(lock)return;lock=true;let r=points===5?'ok':points===0?'ng':'mid';mark(x,r);markSeen(x,points===5);run.answers.push({key:key(x),v:x[0],q:'5Sの5項目',result:r,points,maxPoints:5,subresults:subs});next()}}
 function startWrongReview(){

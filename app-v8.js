@@ -114,7 +114,7 @@ function startEndless(){reviewMode=false;endlessMode=true;quiz=shuffle(pool());i
 function showExam(){
 setMemoVisible(false);lock=false;let x=quiz[idx],five=is5S(x)&&!reviewMode,donePts=endlessMode?run.answers.length:quiz.slice(0,idx).reduce((s,z)=>s+weight(z),0),parts=five?[]:examParts(x);
 app.innerHTML=`<div class="card"><div class="meta">${endlessMode?'解き続けるモード｜回答 '+run.answers.length+' 問｜':reviewMode?'間違い復習｜':'本番10点｜'}${vt(run.volumes)}｜第${x[0]}巻｜${five?'5Sセット 5点':'入力問題 1点'}${endlessMode?'<button class="b" id="endEndless" style="float:right;padding:4px 8px">終了</button>':''}</div><div class="prog"><i style="width:${endlessMode?Math.min(100,donePts%10*10):donePts*10}%"></i></div><div class="q">${five?'5Sの5項目について、それぞれの意味を答えてください。':x[2]}</div>${five?examFiveSHTML('e5_'):examInputHTML(x)}<div class="acts"><button class="pri" id="judgeBtn">答え合わせ</button></div><div class="ans" id="ans">${five?'<b>各項目を確認して採点してください。</b>':`<b>正答：</b>${examAnswerHTML(parts)}<div class="exp">${esc(x[4]||'')}</div>`}</div><div class="acts" id="grade" style="display:none"></div></div>`;
-if(endlessMode)document.getElementById('endEndless').onclick=()=>{endlessMode=false;examHome()};
+if(endlessMode)document.getElementById('endEndless').onclick=finishEndless;
 if(five){setupFiveS('e5_','judgeBtn','ans','grade',(points,subs)=>commit5(points,subs));return}
 const inputs=parts.map((_,i)=>document.getElementById('ei_'+i)),btn=document.getElementById('judgeBtn'),ans=document.getElementById('ans'),grade=document.getElementById('grade');
 btn.onclick=()=>{
@@ -138,6 +138,23 @@ inputs.forEach((inp,i)=>inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!
 function next(){if(++idx<quiz.length)showExam();else if(endlessMode){quiz=shuffle(pool());idx=0;showExam()}else finish()}
 function commit(r,points){if(lock)return;lock=true;mark(x,r);markSeen(x,r==='ok');run.answers.push({key:key(x),v:x[0],q:x[2],answer:x[3],exp:x[4],result:r,points,maxPoints:1});next()}
 function commit5(points,subs){if(lock)return;lock=true;let r=points===5?'ok':points===0?'ng':'mid';mark(x,r);markSeen(x,points===5);run.answers.push({key:key(x),v:x[0],q:'5Sの5項目',result:r,points,maxPoints:5,subresults:subs});next()}}
+function finishEndless(){
+  endlessMode=false;
+  const answers=run?.answers||[];
+  const wrong=answers.filter(a=>(a.points??(a.result==='ok'?1:0))<(a.maxPoints||1));
+  const score=answers.reduce((n,a)=>n+(Number(a.points)||0),0);
+  const details=wrong.length?wrong.map(a=>{
+    if(a.subresults){
+      const misses=a.subresults.filter(z=>z.result!=='ok');
+      return `<div class="rankitem"><b>第${a.v||1}巻｜5Sの間違い</b>${misses.map(z=>`<div style="margin-top:8px;padding:9px 10px;background:#fff6f6;border-radius:10px"><b>× ${esc(z.name)}</b><div class="rankmeta" style="margin-top:5px"><b>正答：</b>${esc(fiveAnswer(z)||'—')}</div></div>`).join('')}</div>`;
+    }
+    return `<div class="rankitem"><b>第${a.v}巻｜${esc(a.q||'問題')}</b><div class="rankmeta" style="margin-top:6px"><b>正答：</b>${esc(answerFor(a)||'—')}</div>${a.exp?`<div class="exp">${esc(a.exp)}</div>`:''}</div>`;
+  }).join(''):'<div class="good">間違えた問題はありません。全問正解です。</div>';
+  app.innerHTML=`<div class="box"><div class="ttl">解き続けるモード 結果</div><div class="score">${answers.length}問回答｜${score}点</div><div class="sub">この結果は本番テストの記録には追加されません。</div><div class="acts"><button class="pri" id="endlessAgain">もう一度解き続ける</button><button class="b" id="endlessReview" ${wrong.length?'':'disabled'}>間違えた問題を復習</button><button class="b" id="endlessHome">モード選択へ戻る</button></div></div><div class="box"><div class="ttl">間違えた問題（${wrong.length}件）</div>${details}</div>`;
+  document.getElementById('endlessAgain').onclick=startEndless;
+  document.getElementById('endlessReview').onclick=startWrongReview;
+  document.getElementById('endlessHome').onclick=examHome;
+}
 function startWrongReview(){
   const previous=H[0];
   const source=run&&!reviewMode?run.answers:previous?.answers||[];

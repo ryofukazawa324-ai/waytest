@@ -1,5 +1,5 @@
 (()=>{
-  const LOCAL_BUILD='20261030-1005';
+  const LOCAL_BUILD='20261031-1006';
   const CHECK_KEY='waytest-last-version-check';
   const CHECK_EVERY=60*1000;
   async function check(){
